@@ -1,6 +1,6 @@
 // Keeps a copy of the app on the phone so it opens without an internet connection.
 // Records are never stored here; they live only in the phone's own storage.
-const VERSION = 'zefira-v1';
+const VERSION = 'zefira-v2';
 const FILES = [
   './',
   './index.html',

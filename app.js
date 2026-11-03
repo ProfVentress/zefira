@@ -14,7 +14,7 @@
 
   // ---------- storage ----------
   function emptyData() {
-    return { entries: [], settings: { passHash: null, passSalt: null, setupDone: false, installDismissed: false, lastBackup: null } };
+    return { entries: [], settings: { passHash: null, passSalt: null, setupDone: false, usualPuffs: null, installDismissed: false, lastBackup: null } };
   }
   function load() {
     try {
@@ -205,10 +205,19 @@
       '<h1 style="text-align:center;font-size:28px">Welcome to Zefira</h1>' +
       '<p style="margin:0">Zefira keeps a record of when you use your rescue inhaler, so you can show your doctor a clear summary.</p>' +
       '<p style="margin:0">Your records stay on this phone. There is no account, and nothing is sent to anyone.</p>' +
+      '<div class="section"><p class="label" id="dose-l">How many puffs does your doctor prescribe each time you use your rescue inhaler?</p>' + doseButtons('dose-l') + '</div>' +
       '<p style="margin:0">You can protect the app with a 4-digit passcode, which is useful if other people sometimes use your phone.</p>' +
-      '<button class="primary" data-action="welcome-pass">Set a passcode</button>' +
-      '<button class="secondary" data-action="welcome-skip">Not now</button>' +
+      '<button class="primary" data-action="welcome-pass"' + (data.settings.usualPuffs ? '' : ' disabled') + '>Set a passcode</button>' +
+      '<button class="secondary" data-action="welcome-skip"' + (data.settings.usualPuffs ? '' : ' disabled') + '>Not now</button>' +
+      (data.settings.usualPuffs ? '' : '<p class="hint">Choose your usual dose to continue.</p>') +
       '<p class="hint">You can change this later in Settings.</p></section>';
+  }
+
+  function doseButtons(labelId, fallback) {
+    const u = data.settings.usualPuffs || (fallback ? 2 : null);
+    return '<div class="segmented" role="group" aria-labelledby="' + labelId + '">' +
+      '<button data-action="dose" data-value="1" aria-pressed="' + (u === 1) + '">1 puff</button>' +
+      '<button data-action="dose" data-value="2" aria-pressed="' + (u === 2) + '">2 puffs</button></div>';
   }
 
   function installCard() {
@@ -319,7 +328,7 @@
         const label = d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }) + ': ' +
           (relief.length ? plural(relief.length, 'relief use', 'relief uses') : 'no relief use') + (prev ? ', prevention use' : '') + (night ? ', woke you up' : '');
         cells += '<button class="cell ' + lvl + (day === today ? ' today' : '') + '" data-action="pick-day" data-day="' + key + '" aria-pressed="' + (ui.selectedDay === key) + '" aria-label="' + esc(label) + '">' +
-          d.getDate() + (relief.length ? '<span class="k">' + relief.length + '</span>' : '') + (prev ? '<span class="p"></span>' : '') + (night ? ICON.moon : '') + '</button>';
+          d.getDate() + (prev ? '<span class="p"></span>' : '') + (night ? ICON.moon : '') + '</button>';
       }
       const hot = reliefDayCount >= 3;
       weeks += '<div class="wk' + (hot ? ' hot' : '') + '"' + (hot ? ' aria-label="Relief use on ' + reliefDayCount + ' days this week" role="group"' : '') + '>' + cells + '</div>';
@@ -341,8 +350,8 @@
       '<a class="icon-btn" href="#/calendar/' + nextKey + '" aria-label="Next month">' + ICON.next + '</a></div>' +
       '<div class="weekdays" aria-hidden="true"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>' +
       '<div class="weeks">' + weeks + '</div>' +
-      '<div class="legend-hot"><i></i>Orange week: relief use on 3 or more days</div>' +
-      '<div class="legend"><span><i class="sw" style="background:var(--l1)"></i><i class="sw" style="background:var(--l2)"></i><i class="sw" style="background:var(--l3)"></i>1, 2, 3+ relief uses</span>' +
+      '<div class="legend-hot"><i></i>Framed week: relief use on 3 or more days</div>' +
+      '<div class="legend"><span><i class="sw" style="background:var(--l1)"></i><i class="sw" style="background:var(--l2)"></i><i class="sw" style="background:var(--l3)"></i>1, 2, 3 or more relief uses</span>' +
       '<span><i class="ring"></i>prevention</span><span style="color:var(--primary-deep)"><svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg><span class="muted">woke me up</span></span></div>' +
       dayPanel + '</section>' + nav('calendar');
   }
@@ -447,6 +456,8 @@
       : '<button class="row" data-action="pass-on">Turn on passcode<span class="muted">›</span></button>';
     return '<section class="screen">' +
       '<div class="topbar" style="justify-content:flex-start"><a class="icon-btn plain" href="#/" aria-label="Back">' + ICON.back + '</a><h1>Settings</h1></div>' +
+      '<p class="group-head" id="dose-s">Usual dose for each use</p>' + doseButtons('dose-s', true) +
+      '<p class="note">New entries start with this number of puffs. You can still change it on any entry.</p>' +
       '<p class="group-head">Privacy</p><div class="group">' + pass + '</div>' +
       '<p class="group-head">Your records</p><div class="group">' +
       '<button class="row" data-action="backup">Save a backup file<span class="muted">›</span></button>' +
@@ -515,7 +526,7 @@
   function current() { const r = parseRoute(); return r.name === 'entry' ? data.entries.find((e) => e.id === r.arg) : null; }
 
   function createEntry(type, when) {
-    const e = cleanEntry({ id: newId(), t: when, type: type, puffs: 2 });
+    const e = cleanEntry({ id: newId(), t: when, type: type, puffs: data.settings.usualPuffs || 2 });
     data.entries.push(e);
     save();
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
@@ -539,6 +550,7 @@
         }
         break;
       case 'welcome-pass': startPass('set', '#/'); break;
+      case 'dose': data.settings.usualPuffs = Number(btn.dataset.value); save(); render(); break;
       case 'welcome-skip': data.settings.setupDone = true; save(); render(); break;
       case 'dismiss-install': data.settings.installDismissed = true; save(); render(); break;
       case 'quick-log': {
